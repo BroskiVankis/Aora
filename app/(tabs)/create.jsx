@@ -1,43 +1,85 @@
-import { View, Text, ScrollView, TouchableOpacity, Image, Alert } from 'react-native'
-import React, { useState } from 'react'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import FormField from './../../components/FormField';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+  Alert,
+} from "react-native";
+import React, { useState } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
+import FormField from "./../../components/FormField";
 import WebView from "react-native-webview";
-import Video from 'react-native-video';
-import * as DocumentPicker from 'expo-document-picker';
-import { icons } from '../../constants';
-import CustomButton from './../../components/CustomButton';
+import * as DocumentPicker from "expo-document-picker";
+import { icons } from "../../constants";
+import CustomButton from "./../../components/CustomButton";
+import { uploadVideoToCloudinary } from "../../lib/cloudinary"; // 👈 your upload logic
+import { ActivityIndicator } from "react-native";
+import { router } from "expo-router";
+import { createVideo } from "../../lib/appwrite"; // 👈 your upload logic
+
+const CLOUD_NAME = "dykvovsis";
+const UPLOAD_PRESET = "unsigned_video";
 
 const Create = () => {
-  const [uploading, setUploading] = useState(false)
+  const [uploading, setUploading] = useState(false);
   const [form, setForm] = useState({
-    title: '',
+    title: "",
     video: null,
     thumbnail: null,
-    prompt: ''
-  })
+    prompt: "",
+  });
+  const [videoUrl, setVideoUrl] = useState(null); // for WebView preview
 
   const openPicker = async (selectType) => {
     const result = await DocumentPicker.getDocumentAsync({
-      type: selectType === 'image' ? ['image/png', 'image/jpeg'] : ['video/mp4', 'video/gif']
-    })
+      type:
+        selectType === "image"
+          ? ["image/png", "image/jpeg"]
+          : ["video/mp4", "video/gif"],
+      copyToCacheDirectory: true,
+    });
 
-    if (!result.cancelled) {
-      if (selectType === 'image') {
-        setForm({ ...form, thumbnail: result.assets[0] })
+    if (!result.canceled) {
+      const file = result.assets?.[0] ?? result;
+      if (selectType === "image") {
+        setForm({ ...form, thumbnail: file });
+      } else if (selectType === "video") {
+        setForm({ ...form, video: file });
+        setVideoUrl(null); // Reset preview
       }
-
-      if (selectType === 'video') {
-        setForm({ ...form, video: result.assets[0] })
-      }
-    } else {
-      setTimeout(() => {
-        Alert.alert('Document picked', JSON.stringify(result, null, 2))
-      }, 100)
     }
-  }
+  };
 
-  const submit = () => {}
+  const submit = async () => {
+    try {
+      setUploading(true);
+
+      await createVideo({
+        ...form, userId: user.$id
+      })
+
+      if (!form.video) {
+        Alert.alert("Missing Video", "Please select a video to upload.");
+        return;
+      }
+
+      const uploadedUrl = await uploadVideoToCloudinary(
+        form.video.uri,
+        UPLOAD_PRESET,
+        CLOUD_NAME
+      );
+
+      setVideoUrl(uploadedUrl);
+
+      Alert.alert("Upload Success", "Your video was uploaded!");
+      router.push("/home");
+    } catch (error) {
+      Alert.alert("Upload Failed", error.message);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
     <SafeAreaView className="bg-primary h-full">
@@ -58,30 +100,33 @@ const Create = () => {
           </Text>
 
           <TouchableOpacity onPress={() => openPicker("video")}>
-            {form.video ? (
-              form.video.uri.startsWith("file://") ? (
-                <View className="w-full h-40 px-4 bg-black-100 rounded-2xl justify-center items-center">
-                  <Text className="text-gray-100 text-sm text-center px-4">
-                    Preview not available for local videos in Expo Go.
-                  </Text>
-                </View>
-              ) : (
-                <View
-                  style={{
-                    width: "100%",
-                    height: 248,
-                    borderRadius: 16,
-                    overflow: "hidden",
-                  }}
-                >
-                  <WebView
-                    source={{ uri: form.video.uri }}
-                    style={{ flex: 1 }}
-                    allowsInlineMediaPlayback
-                    mediaPlaybackRequiresUserAction={false}
-                  />
-                </View>
-              )
+            {uploading ? (
+              <View className="w-full h-40 px-4 bg-black-100 rounded-2xl justify-center items-center">
+                <ActivityIndicator size="large" color="#fff" />
+                <Text className="text-gray-100 mt-2">Uploading video...</Text>
+              </View>
+            ) : videoUrl ? (
+              <View
+                style={{
+                  width: "100%",
+                  height: 248,
+                  borderRadius: 16,
+                  overflow: "hidden",
+                }}
+              >
+                <WebView
+                  source={{ uri: videoUrl }}
+                  style={{ flex: 1 }}
+                  allowsInlineMediaPlayback
+                  mediaPlaybackRequiresUserAction={false}
+                />
+              </View>
+            ) : form.video ? (
+              <View className="w-full h-40 px-4 bg-black-100 rounded-2xl justify-center items-center">
+                <Text className="text-gray-100 text-sm text-center px-4">
+                  Video selected: {form.video.name}
+                </Text>
+              </View>
             ) : (
               <View className="w-full h-40 px-4 bg-black-100 rounded-2xl justify-center items-center">
                 <View className="w-14 h-14 border border-dashed border-secondary-100 justify-center items-center">
@@ -140,6 +185,6 @@ const Create = () => {
       </ScrollView>
     </SafeAreaView>
   );
-}
+};
 
-export default Create
+export default Create;
