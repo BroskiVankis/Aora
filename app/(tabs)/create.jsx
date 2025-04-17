@@ -10,18 +10,20 @@ import React, { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import FormField from "./../../components/FormField";
 import WebView from "react-native-webview";
-import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import { icons } from "../../constants";
 import CustomButton from "./../../components/CustomButton";
 import { uploadVideoToCloudinary } from "../../lib/cloudinary"; // 👈 your upload logic
 import { ActivityIndicator } from "react-native";
 import { router } from "expo-router";
 import { createVideo } from "../../lib/appwrite"; // 👈 your upload logic
+import { useGlobalContext } from './../../context/GlobalProvider';
 
 const CLOUD_NAME = "dykvovsis";
 const UPLOAD_PRESET = "unsigned_video";
 
 const Create = () => {
+  const { user } = useGlobalContext();
   const [uploading, setUploading] = useState(false);
   const [form, setForm] = useState({
     title: "",
@@ -32,12 +34,10 @@ const Create = () => {
   const [videoUrl, setVideoUrl] = useState(null); // for WebView preview
 
   const openPicker = async (selectType) => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type:
-        selectType === "image"
-          ? ["image/png", "image/jpeg"]
-          : ["video/mp4", "video/gif"],
-      copyToCacheDirectory: true,
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: selectType === 'image' ? ImagePicker.MediaTypeOptions.Images : ImagePicker.MediaTypeOptions.Videos,
+      aspect: [4, 3],
+      quality: 1,
     });
 
     if (!result.canceled) {
